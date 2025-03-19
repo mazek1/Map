@@ -59,7 +59,7 @@ if df is not None:
         df = df.dropna(subset=['Latitude', 'Longitude'])
         
         # Generate map
-        st.write("### Interactive Map")
+        st.write("### Interactive Map of Shops")
         shop_map = folium.Map(location=[50, 10], zoom_start=4)
         marker_cluster = MarkerCluster().add_to(shop_map)
         
@@ -75,7 +75,7 @@ if df is not None:
             ).add_to(marker_cluster)
         
         # Display map
-        st.components.v1.html(shop_map._repr_html_(), height=600)
+        st.components.v1.html(shop_map._repr_html_(), height=800)
         
         # Display data table
         st.write("### Shop Data")
