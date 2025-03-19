@@ -5,17 +5,30 @@ from folium.plugins import MarkerCluster
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 import time
+import os
 
 # Initialize Streamlit app
 st.title("Shop Location Mapper")
 st.write("Upload an Excel file with shop details to generate an interactive map.")
+
+# Define session state storage file
+DATA_FILE = "shop_data.xlsx"
 
 # File uploader
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
-    
+    df.to_excel(DATA_FILE, index=False)  # Save uploaded file
+    st.success("File uploaded and saved.")
+elif os.path.exists(DATA_FILE):
+    df = pd.read_excel(DATA_FILE)
+    st.info("Using previously uploaded data.")
+else:
+    df = None
+    st.warning("No file uploaded yet.")
+
+if df is not None:
     # Ensure required columns exist
     required_columns = ["Company", "City", "Country"]
     if not all(col in df.columns for col in required_columns):
@@ -35,10 +48,12 @@ if uploaded_file:
                 return get_coordinates(city, country)
             return None, None
         
-        # Add latitude and longitude columns
-        df[['Latitude', 'Longitude']] = df.apply(
-            lambda row: pd.Series(get_coordinates(row['City'], row['Country'])), axis=1
-        )
+        # Add latitude and longitude columns if missing
+        if "Latitude" not in df.columns or "Longitude" not in df.columns:
+            df[['Latitude', 'Longitude']] = df.apply(
+                lambda row: pd.Series(get_coordinates(row['City'], row['Country'])), axis=1
+            )
+            df.to_excel(DATA_FILE, index=False)  # Save geocoded data
         
         # Remove rows with missing coordinates
         df = df.dropna(subset=['Latitude', 'Longitude'])
