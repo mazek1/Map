@@ -3,4 +3,3 @@ pandas
 folium
 geopy
 openpyxl
-FeatureGroup
