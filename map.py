@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import folium
-from folium.plugins import FeatureGroup
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 import time
