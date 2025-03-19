@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import folium
-from folium.plugins import MarkerCluster
+from folium.plugins import FeatureGroup
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 import time
@@ -30,10 +30,14 @@ else:
 
 if df is not None:
     # Ensure required columns exist
-    required_columns = ["Company", "City", "Country"]
+    required_columns = ["Company", "City", "Country", "Address"]
     if not all(col in df.columns for col in required_columns):
-        st.error("The file must contain at least 'Company', 'City', and 'Country' columns.")
+        st.error("The file must contain at least 'Company', 'City', 'Country', and 'Address' columns.")
     else:
+        # Remove unwanted entries
+        df = df[~df['Company'].str.contains("personale", case=False, na=False)]
+        df = df[~df['Address'].str.contains("mosevej", case=False, na=False)]
+        
         # Geocoding function
         geolocator = Nominatim(user_agent="shop_locator")
         
@@ -61,18 +65,49 @@ if df is not None:
         # Generate map
         st.write("### Interactive Map of Shops")
         shop_map = folium.Map(location=[50, 10], zoom_start=4)
-        marker_cluster = MarkerCluster().add_to(shop_map)
         
-        for _, row in df.iterrows():
-            popup_text = f"""
-            <b>{row['Company']}</b><br>
-            {row['City']}, {row['Country']}<br>
-            """
-            folium.Marker(
-                location=[row['Latitude'], row['Longitude']],
-                popup=popup_text,
-                tooltip=row['Company']
-            ).add_to(marker_cluster)
+        # Group markers by country and German states (Bundesländer)
+        countries = df['Country'].unique()
+        country_groups = {}
+        
+        for country in countries:
+            country_data = df[df['Country'] == country]
+            
+            if country == "Germany" and "State" in df.columns:
+                states = country_data['State'].unique()
+                for state in states:
+                    state_data = country_data[country_data['State'] == state]
+                    group_name = f"{state} (Germany)"
+                    country_groups[group_name] = folium.FeatureGroup(name=group_name)
+                    for _, row in state_data.iterrows():
+                        popup_text = f"""
+                        <b>{row['Company']}</b><br>
+                        {row['City']}, {row['State']}, {row['Country']}<br>
+                        """
+                        folium.Marker(
+                            location=[row['Latitude'], row['Longitude']],
+                            popup=popup_text,
+                            tooltip=row['Company']
+                        ).add_to(country_groups[group_name])
+            else:
+                country_groups[country] = folium.FeatureGroup(name=country)
+                for _, row in country_data.iterrows():
+                    popup_text = f"""
+                    <b>{row['Company']}</b><br>
+                    {row['City']}, {row['Country']}<br>
+                    """
+                    folium.Marker(
+                        location=[row['Latitude'], row['Longitude']],
+                        popup=popup_text,
+                        tooltip=row['Company']
+                    ).add_to(country_groups[country])
+        
+        # Add each group to the map
+        for group in country_groups.values():
+            shop_map.add_child(group)
+        
+        # Add layer control to toggle groups on/off
+        folium.LayerControl().add_to(shop_map)
         
         # Display map
         st.components.v1.html(shop_map._repr_html_(), height=800)
