@@ -108,8 +108,8 @@ if df is not None:
         # Add layer control to toggle groups on/off
         folium.LayerControl().add_to(shop_map)
         
-        # Display map
-        st.components.v1.html(shop_map._repr_html_(), height=800)
+        # Display map with equal width and height
+        st.components.v1.html(shop_map._repr_html_(), height=1000, width=1000)
         
         # Display data table
         st.write("### Shop Data")
