@@ -62,7 +62,10 @@ if df is not None:
         # Remove rows with missing coordinates
         df = df.dropna(subset=['Latitude', 'Longitude'])
 
-        # --- Search Bar ---
+        # Generate map
+        st.write("### Interactive Map of Shops")
+
+        # --- Search Bar Below Heading ---
         search_query = st.text_input("Search for a customer by name")
         selected_row = None
         if search_query:
@@ -73,13 +76,10 @@ if df is not None:
             else:
                 st.warning("No matching customer found.")
 
-        # Generate map
-        st.write("### Interactive Map of Shops")
         map_center = [selected_row['Latitude'], selected_row['Longitude']] if selected_row is not None else [50, 10]
         zoom_level = 10 if selected_row is not None else 4
         shop_map = folium.Map(location=map_center, zoom_start=zoom_level)
 
-        # Group markers by country and German states (Bundesländer)
         countries = df['Country'].unique()
         country_groups = {}
 
@@ -100,11 +100,14 @@ if df is not None:
                         {row.get('Email', '')}<br>
                         {row.get('Phone', '')}<br>
                         """
-                        folium.Marker(
+                        marker = folium.Marker(
                             location=[row['Latitude'], row['Longitude']],
                             popup=popup_text,
                             tooltip=row['Company']
-                        ).add_to(country_groups[group_name])
+                        )
+                        marker.add_to(country_groups[group_name])
+                        if selected_row is None and search_query == row['Company']:
+                            selected_row = row
             else:
                 country_groups[country] = folium.FeatureGroup(name=country)
                 for _, row in country_data.iterrows():
@@ -115,11 +118,14 @@ if df is not None:
                     {row.get('Email', '')}<br>
                     {row.get('Phone', '')}<br>
                     """
-                    folium.Marker(
+                    marker = folium.Marker(
                         location=[row['Latitude'], row['Longitude']],
                         popup=popup_text,
                         tooltip=row['Company']
-                    ).add_to(country_groups[country])
+                    )
+                    marker.add_to(country_groups[country])
+                    if selected_row is None and search_query == row['Company']:
+                        selected_row = row
 
         for group in country_groups.values():
             shop_map.add_child(group)
@@ -135,7 +141,11 @@ if df is not None:
             st.write(f"**Company**: {selected_row['Company']}")
             st.write(f"**City**: {selected_row['City']}")
             st.write(f"**Country**: {selected_row['Country']}")
-            st.write(f"**Address**: {selected_row.get('Address', 'N/A')}")
+
+            address = selected_row.get('Address', 'N/A')
+            search_url = f"https://www.google.com/search?q={address.replace(' ', '+')}"
+            st.markdown(f"**Address**: [{address}]({search_url})", unsafe_allow_html=True)
+
             st.write(f"**Email**: {selected_row.get('Email', 'N/A')}")
             st.write(f"**Phone**: {selected_row.get('Phone', 'N/A')}")
 
