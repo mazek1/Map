@@ -5,6 +5,7 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 import time
 import os
+import streamlit.components.v1 as components
 
 # Initialize Streamlit app
 st.title("Shop Location Mapper")
@@ -36,10 +37,10 @@ if df is not None:
         # Remove unwanted entries
         df = df[~df['Company'].str.contains("personale", case=False, na=False)]
         df = df[~df['Address'].str.contains("mosevej", case=False, na=False)]
-        
+
         # Geocoding function
         geolocator = Nominatim(user_agent="shop_locator")
-        
+
         @st.cache_data
         def get_coordinates(city, country):
             try:
@@ -50,28 +51,41 @@ if df is not None:
                 time.sleep(1)
                 return get_coordinates(city, country)
             return None, None
-        
+
         # Add latitude and longitude columns if missing
         if "Latitude" not in df.columns or "Longitude" not in df.columns:
             df[['Latitude', 'Longitude']] = df.apply(
                 lambda row: pd.Series(get_coordinates(row['City'], row['Country'])), axis=1
             )
             df.to_excel(DATA_FILE, index=False)  # Save geocoded data
-        
+
         # Remove rows with missing coordinates
         df = df.dropna(subset=['Latitude', 'Longitude'])
-        
+
+        # --- Search Bar ---
+        search_query = st.text_input("Search for a customer by name")
+        selected_row = None
+        if search_query:
+            matches = df[df['Company'].str.contains(search_query, case=False, na=False)]
+            if not matches.empty:
+                selected_row = matches.iloc[0]
+                st.success(f"Found: {selected_row['Company']} in {selected_row['City']}, {selected_row['Country']}")
+            else:
+                st.warning("No matching customer found.")
+
         # Generate map
         st.write("### Interactive Map of Shops")
-        shop_map = folium.Map(location=[50, 10], zoom_start=4)
-        
+        map_center = [selected_row['Latitude'], selected_row['Longitude']] if selected_row is not None else [50, 10]
+        zoom_level = 10 if selected_row is not None else 4
+        shop_map = folium.Map(location=map_center, zoom_start=zoom_level)
+
         # Group markers by country and German states (Bundesländer)
         countries = df['Country'].unique()
         country_groups = {}
-        
+
         for country in countries:
             country_data = df[df['Country'] == country]
-            
+
             if country == "Germany" and "State" in df.columns:
                 states = country_data['State'].unique()
                 for state in states:
@@ -82,6 +96,9 @@ if df is not None:
                         popup_text = f"""
                         <b>{row['Company']}</b><br>
                         {row['City']}, {row['State']}, {row['Country']}<br>
+                        {row.get('Address', '')}<br>
+                        {row.get('Email', '')}<br>
+                        {row.get('Phone', '')}<br>
                         """
                         folium.Marker(
                             location=[row['Latitude'], row['Longitude']],
@@ -94,23 +111,34 @@ if df is not None:
                     popup_text = f"""
                     <b>{row['Company']}</b><br>
                     {row['City']}, {row['Country']}<br>
+                    {row.get('Address', '')}<br>
+                    {row.get('Email', '')}<br>
+                    {row.get('Phone', '')}<br>
                     """
                     folium.Marker(
                         location=[row['Latitude'], row['Longitude']],
                         popup=popup_text,
                         tooltip=row['Company']
                     ).add_to(country_groups[country])
-        
-        # Add each group to the map
+
         for group in country_groups.values():
             shop_map.add_child(group)
-        
-        # Add layer control to toggle groups on/off
+
         folium.LayerControl().add_to(shop_map)
-        
+
         # Display map with equal width and height
-        st.components.v1.html(shop_map._repr_html_(), height=1000, width=1000)
-        
+        components.html(shop_map._repr_html_(), height=1000, width=1000)
+
+        # Display selected customer info below map
+        if selected_row is not None:
+            st.write("### Selected Customer Details")
+            st.write(f"**Company**: {selected_row['Company']}")
+            st.write(f"**City**: {selected_row['City']}")
+            st.write(f"**Country**: {selected_row['Country']}")
+            st.write(f"**Address**: {selected_row.get('Address', 'N/A')}")
+            st.write(f"**Email**: {selected_row.get('Email', 'N/A')}")
+            st.write(f"**Phone**: {selected_row.get('Phone', 'N/A')}")
+
         # Display data table
         st.write("### Shop Data")
         st.dataframe(df)
